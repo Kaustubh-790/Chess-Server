@@ -196,10 +196,54 @@ export const registerGameHandler = (io, socket) => {
         return socket.emit("move_rejected", { reason: "illegal_move" });
       }
 
+      const now = Date.now();
+      const activeColorStr = isWhite ? "white" : "black";
+      const nextColorStr = isWhite ? "black" : "white";
+
+      if (game.timeControl && game.timeControl.label !== "unlimited") {
+        if (game.lastMoveTime) {
+          const elapsed = now - game.lastMoveTime;
+          players[activeColorStr].time -= elapsed;
+        }
+
+        if (players[activeColorStr].time <= 0 && game.lastMoveTime) {
+          players[activeColorStr].time = 0;
+          io.to(gameId).emit("board_sync", {
+            fen: instance.fen(),
+            lastMove: move,
+            turn: instance.turn(),
+            whiteTime: players.white.time,
+            blackTime: players.black.time,
+          });
+          return handleGameOver(io, game, nextColorStr, "timeout");
+        }
+
+        players[activeColorStr].time += (game.timeControl.increment || 0) * 1000;
+        game.lastMoveTime = now;
+
+        if (game.timeoutTimer) clearTimeout(game.timeoutTimer);
+
+        if (!instance.isGameOver()) {
+          game.timeoutTimer = setTimeout(() => {
+            players[nextColorStr].time = 0;
+            io.to(gameId).emit("board_sync", {
+              fen: instance.fen(),
+              lastMove: null,
+              turn: instance.turn(),
+              whiteTime: players.white.time,
+              blackTime: players.black.time,
+            });
+            handleGameOver(io, game, activeColorStr, "timeout");
+          }, players[nextColorStr].time);
+        }
+      }
+
       io.to(gameId).emit("board_sync", {
         fen: instance.fen(),
         lastMove: move,
         turn: instance.turn(),
+        whiteTime: players?.white?.time,
+        blackTime: players?.black?.time,
       });
 
       if (instance.isGameOver()) {

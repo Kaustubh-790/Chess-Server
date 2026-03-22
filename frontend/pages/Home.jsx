@@ -8,6 +8,14 @@ const Home = () => {
   const socket = useSocket();
   const navigate = useNavigate();
   const [isSearching, setIsSearching] = useState(false);
+  const [timeControl, setTimeControl] = useState({ label: "3+2", initial: 3, increment: 2 });
+
+  const presets = [
+    { label: "1 min", initial: 1, increment: 0 },
+    { label: "3 min", initial: 3, increment: 0 },
+    { label: "3+2", initial: 3, increment: 2 },
+    { label: "10 min", initial: 10, increment: 0 }
+  ];
 
   useEffect(() => {
     if (!socket) return;
@@ -30,7 +38,7 @@ const Home = () => {
 
   const handleFindMatch = () => {
     setIsSearching(true);
-    socket.emit("enter_arena");
+    socket.emit("enter_arena", { timeControl });
   };
 
   return (
@@ -47,12 +55,32 @@ const Home = () => {
           <h2 className="text-2xl font-semibold mb-4 text-white">
             Global Arena
           </h2>
+
+          <div className="mb-5">
+            <h3 className="text-sm text-gray-400 mb-2">Time Control</h3>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {presets.map((tc) => (
+                <button
+                  key={tc.label}
+                  onClick={() => setTimeControl(tc)}
+                  className={`py-2 px-1 rounded-md text-sm font-semibold transition-colors ${
+                    timeControl.label === tc.label
+                      ? "bg-orange-600 text-white"
+                      : "bg-gray-600 text-gray-300 hover:bg-gray-500"
+                  }`}
+                >
+                  {tc.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <button
             onClick={handleFindMatch}
             disabled={isSearching}
             className="w-full px-4 py-3 font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-500 transition-colors text-lg"
           >
-            {isSearching ? "Searching for opponent..." : "Play Now"}
+            {isSearching ? "Searching for opponent..." : `Play ${timeControl.label}`}
           </button>
         </div>
 

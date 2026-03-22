@@ -98,6 +98,7 @@ const Arena = () => {
   const [endTime, setEndTime] = useState(null);
   const [inLobby, setInLobby] = useState(false);
   const [duration, setDuration] = useState(10);
+  const [timeControl, setTimeControl] = useState({ label: "3+2", initial: 3, increment: 2 });
   const [joinId, setJoinId] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -157,7 +158,7 @@ const Arena = () => {
   const handleCreate = async () => {
     setError("");
     try {
-      const res = await api.post("/arena/create", { duration });
+      const res = await api.post("/arena/create", { duration, timeControl });
       const { arenaId: newId, endTime: newEnd } = res.data;
       setArenaId(newId);
       setEndTime(newEnd);
@@ -358,8 +359,33 @@ const Arena = () => {
           <h2 className="text-base font-semibold mb-3 text-white">
             Create Arena
           </h2>
+          
           <label className="block text-xs text-slate-400 mb-1">
-            Duration (minutes)
+            Time Control
+          </label>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 mb-3">
+            {[
+              { label: "1 min", initial: 1, increment: 0 },
+              { label: "3 min", initial: 3, increment: 0 },
+              { label: "3+2", initial: 3, increment: 2 },
+              { label: "10 min", initial: 10, increment: 0 }
+            ].map((tc) => (
+              <button
+                key={tc.label}
+                onClick={() => setTimeControl(tc)}
+                className={`py-1.5 px-1 rounded-md text-xs font-semibold transition-colors ${
+                  timeControl.label === tc.label
+                    ? "bg-orange-600 text-white"
+                    : "bg-slate-600 text-slate-300 hover:bg-slate-500"
+                }`}
+              >
+                {tc.label}
+              </button>
+            ))}
+          </div>
+
+          <label className="block text-xs text-slate-400 mb-1">
+            Arena Duration (minutes)
           </label>
           <input
             type="number"

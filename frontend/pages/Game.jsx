@@ -30,11 +30,42 @@ const Game = () => {
 
   const [fen, setFen] = useState(chessRef.current.fen());
   const [turn, setTurn] = useState("w");
+  const [whiteTime, setWhiteTime] = useState(gameData?.whiteTime || 0);
+  const [blackTime, setBlackTime] = useState(gameData?.blackTime || 0);
   const [gameOver, setGameOver] = useState(null);
+
+  const formatClock = (ms) => {
+    if (ms === undefined || ms === null) return "0:00";
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    
+    // If less than 20s, show tenths for more urgency
+    if (ms < 20000 && ms > 0) {
+      const tenths = Math.floor((ms % 1000) / 100);
+      return `${m}:${s.toString().padStart(2, "0")}.${tenths}`;
+    }
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   const [requeue, setRequeue] = useState(null);
   const [statusText, setStatusText] = useState("");
   const [isLookingForMatch, setIsLookingForMatch] = useState(false);
   const [arenaExpired, setArenaExpired] = useState(false);
+
+  useEffect(() => {
+    if (gameOver || isLookingForMatch || !gameData?.timeControl || gameData.timeControl === "unlimited") return;
+
+    const interval = setInterval(() => {
+      if (turn === "w") {
+        setWhiteTime((prev) => Math.max(0, prev - 100));
+      } else {
+        setBlackTime((prev) => Math.max(0, prev - 100));
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [turn, gameOver, isLookingForMatch, gameData?.timeControl]);
 
   // Arena countdown
   const [arenaEndTime, setArenaEndTime] = useState(null);
@@ -62,12 +93,14 @@ const Game = () => {
   useEffect(() => {
     if (!socket) return;
 
-    const onBoardSync = ({ fen: newFen, turn: newTurn }) => {
+    const onBoardSync = ({ fen: newFen, turn: newTurn, whiteTime: newWt, blackTime: newBt }) => {
       chessRef.current.load(newFen);
       serverFenRef.current = newFen;
       setFen(newFen);
       setTurn(newTurn);
       setStatusText("");
+      if (newWt !== undefined) setWhiteTime(newWt);
+      if (newBt !== undefined) setBlackTime(newBt);
     };
 
     const onMoveRejected = ({ reason }) => {
@@ -92,6 +125,8 @@ const Game = () => {
       setIsLookingForMatch(false);
       setArenaExpired(false);
       setStatusText("");
+      if (newGameData.whiteTime !== undefined) setWhiteTime(newGameData.whiteTime);
+      if (newGameData.blackTime !== undefined) setBlackTime(newGameData.blackTime);
 
       // ── Update gameData STATE so playerColor / opponentName re-render ──
       setGameData(newGameData);
@@ -307,6 +342,11 @@ const Game = () => {
               <div className="player-rating">{opponentRating}</div>
             </div>
           </div>
+          {gameData?.timeControl !== "unlimited" && (
+            <div className={`player-clock ${turn === (topColor === "white" ? "w" : "b") ? "bg-orange-600 outline outline-2 outline-white text-white" : "bg-slate-700 text-slate-300"} font-mono text-xl font-bold px-3 py-1.5 rounded-md min-w-[5rem] text-center`}>
+              {formatClock(topColor === "white" ? whiteTime : blackTime)}
+            </div>
+          )}
           <div
             className={`turn-indicator ${turn === (topColor === "white" ? "w" : "b") ? "active" : ""}`}
           />
@@ -347,6 +387,11 @@ const Game = () => {
               <div className="player-rating">{gameData?.yourRating ?? ""}</div>
             </div>
           </div>
+          {gameData?.timeControl !== "unlimited" && (
+            <div className={`player-clock ${isMyTurn && !gameOver ? "bg-orange-600 outline outline-2 outline-white text-white" : "bg-slate-700 text-slate-300"} font-mono text-xl font-bold px-3 py-1.5 rounded-md min-w-[5rem] text-center`}>
+              {formatClock(bottomColor === "white" ? whiteTime : blackTime)}
+            </div>
+          )}
           <div
             className={`turn-indicator ${isMyTurn && !gameOver ? "active" : ""}`}
           />

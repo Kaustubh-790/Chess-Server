@@ -11,7 +11,7 @@ class ArenaService {
     this.io = io;
   }
 
-  createArena(duration /* minutes */) {
+  createArena(duration /* minutes */, timeControl = null) {
     const arenaId = crypto.randomUUID();
     const endTime = Date.now() + duration * 60 * 1000;
 
@@ -20,7 +20,13 @@ class ArenaService {
       duration * 60 * 1000,
     );
 
-    this.timedArenas.set(arenaId, { arenaId, endTime, queue: [], timer });
+    this.timedArenas.set(arenaId, {
+      arenaId,
+      endTime,
+      queue: [],
+      timer,
+      timeControl,
+    });
     return { arenaId, endTime };
   }
 
@@ -30,12 +36,10 @@ class ArenaService {
 
     console.log(`[Arena] ${arenaId} expired. Force-closing active games.`);
 
-    // Notify all sockets in the arena room
     if (this.io) {
       this.io.to(`arena:${arenaId}`).emit("arena_expired", { arenaId });
     }
 
-    // Force-quit any active games tied to this arena
     const activeGames = gameService.getGamesByArenaId(arenaId);
     for (const game of activeGames) {
       const { gameId } = game;
@@ -106,7 +110,7 @@ class ArenaService {
 
     this.broadcastQueueUpdate(arenaId);
 
-    return gameService.createGame(player1, player2, arenaId);
+    return gameService.createGame(player1, player2, arenaId, arena.timeControl);
   }
 
   getArenaEndTime(arenaId) {
