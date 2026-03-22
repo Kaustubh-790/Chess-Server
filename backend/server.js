@@ -7,6 +7,7 @@ import { Server } from "socket.io";
 import authRoutes from "./routes/authRoutes.js";
 import setupSockets from "./sockets/index.js";
 import arenaRoutes from "./routes/arenaRoutes.js";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 

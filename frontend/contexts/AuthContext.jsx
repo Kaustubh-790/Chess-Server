@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await signInWithPopup(auth, provider);
       const idToken = await userCredential.user.getIdToken();
 
-      const res = await api.post("/auth/google", { idToken });
+      const res = await api.post("/auth/login-google", { idToken });
       handleAuthResponse(res);
 
       return res.data;
