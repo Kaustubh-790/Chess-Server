@@ -92,7 +92,7 @@ const handleGameOver = async (io, game, winner, reason) => {
   }
 
   const finishedArenaId = game.arenaId;
-  gameService.removeGame(gameId);
+  await gameService.removeGame(gameId);
 
   if (finishedArenaId) {
     io.to(gameId).emit("requeue_countdown", {
@@ -106,35 +106,35 @@ const handleGameOver = async (io, game, winner, reason) => {
 
       const joined = [];
 
-      if (players.white.socket.connected) {
-        const res = arenaService.joinArena(
+      if (players.white.socketId) {
+        const res = await arenaService.joinArena(
           finishedArenaId,
-          players.white.socket,
+          { id: players.white.socketId },
           players.white.user,
         );
         if (res.success) {
-          players.white.socket.join(`arena:${finishedArenaId}`);
+          io.in(players.white.socketId).socketsJoin(`arena:${finishedArenaId}`);
           joined.push(true);
         }
       }
 
-      if (players.black.socket.connected) {
-        const res = arenaService.joinArena(
+      if (players.black.socketId) {
+        const res = await arenaService.joinArena(
           finishedArenaId,
-          players.black.socket,
+          { id: players.black.socketId },
           players.black.user,
         );
         if (res.success) {
-          players.black.socket.join(`arena:${finishedArenaId}`);
+          io.in(players.black.socketId).socketsJoin(`arena:${finishedArenaId}`);
           joined.push(true);
         }
       }
 
-      arenaService.broadcastQueueUpdate(finishedArenaId);
+      await arenaService.broadcastQueueUpdate(finishedArenaId);
 
       for (let i = 0; i < joined.length; i++) {
-        const newGame = arenaService.matchArena(finishedArenaId);
-        if (newGame) startMatch(newGame);
+        const newGame = await arenaService.matchArena(finishedArenaId);
+        if (newGame) startMatch(io, newGame);
         else break;
       }
     }, 5000);
@@ -142,10 +142,10 @@ const handleGameOver = async (io, game, winner, reason) => {
 };
 
 export const registerGameHandler = (io, socket) => {
-  socket.on("rejoin_game", ({ gameId }) => {
+  socket.on("rejoin_game", async ({ gameId }) => {
     const userId = socket.user._id.toString();
 
-    const result = gameService.rejoinGame(gameId, userId, socket);
+    const result = await gameService.rejoinGame(gameId, userId, socket.id);
 
     if (!result) {
       return socket.emit("rejoin_failed", { reason: "game_not_found" });
@@ -179,13 +179,13 @@ export const registerGameHandler = (io, socket) => {
   });
 
   socket.on("resign", async ({ gameId }) => {
-    const game = gameService.getGame(gameId);
+    const game = await gameService.getGame(gameId);
     if (!game)
       return socket.emit("move_rejected", { reason: "game_not_found" });
 
     const { players } = game;
-    const isWhite = players.white.socket.id === socket.id;
-    const isBlack = players.black.socket.id === socket.id;
+    const isWhite = players.white.socketId === socket.id;
+    const isBlack = players.black.socketId === socket.id;
 
     if (!isWhite && !isBlack)
       return socket.emit("move_rejected", { reason: "not_your_game" });
@@ -195,14 +195,15 @@ export const registerGameHandler = (io, socket) => {
   });
 
   socket.on("move_attempt", async ({ gameId, from, to, promotion }) => {
-    const game = gameService.getGame(gameId);
+    const game = await gameService.getGame(gameId);
     if (!game)
       return socket.emit("move_rejected", { reason: "game_not_found" });
 
     const { instance, players } = game;
+    const expectedTurnLength = instance.history().length;
 
-    const isWhite = players.white.socket.id === socket.id;
-    const isBlack = players.black.socket.id === socket.id;
+    const isWhite = players.white.socketId === socket.id;
+    const isBlack = players.black.socketId === socket.id;
     const playerColor = isWhite ? "w" : isBlack ? "b" : null;
 
     if (!playerColor)
@@ -242,29 +243,41 @@ export const registerGameHandler = (io, socket) => {
             whiteTime: players.white.time,
             blackTime: players.black.time,
           });
-          return handleGameOver(io, game, nextColorStr, "timeout");
+          return await handleGameOver(io, game, nextColorStr, "timeout");
         }
 
         players[activeColorStr].time +=
           (game.timeControl.increment || 0) * 1000;
         game.lastMoveTime = now;
 
-        if (game.timeoutTimer) clearTimeout(game.timeoutTimer);
-
         if (!instance.isGameOver()) {
-          game.timeoutTimer = setTimeout(() => {
-            players[nextColorStr].time = 0;
+          setTimeout(async () => {
+            const checkGame = await gameService.getGame(gameId);
+            if (!checkGame) return;
+
+            if (checkGame.instance.history().length !== expectedTurnLength + 1)
+              return;
+
+            const latestPlayers = checkGame.players;
+            latestPlayers[nextColorStr].time = 0;
             io.to(gameId).emit("board_sync", {
-              fen: instance.fen(),
+              fen: checkGame.instance.fen(),
               lastMove: null,
-              turn: instance.turn(),
-              whiteTime: players.white.time,
-              blackTime: players.black.time,
+              turn: checkGame.instance.turn(),
+              whiteTime: latestPlayers.white.time,
+              blackTime: latestPlayers.black.time,
             });
-            handleGameOver(io, game, activeColorStr, "timeout");
+            await handleGameOver(io, checkGame, activeColorStr, "timeout");
           }, players[nextColorStr].time);
         }
       }
+
+      await gameService.saveGameState(
+        gameId,
+        instance,
+        players,
+        game.lastMoveTime,
+      );
 
       io.to(gameId).emit("board_sync", {
         fen: instance.fen(),

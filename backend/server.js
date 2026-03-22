@@ -8,6 +8,7 @@ import authRoutes from "./routes/authRoutes.js";
 import setupSockets from "./sockets/index.js";
 import arenaRoutes from "./routes/arenaRoutes.js";
 import cookieParser from "cookie-parser";
+import { createRedisAdapter } from "./config/redis.js";
 
 dotenv.config();
 
@@ -22,6 +23,8 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+io.adapter(createRedisAdapter());
 
 app.use(
   cors({

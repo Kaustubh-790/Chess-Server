@@ -1,13 +1,13 @@
-export const startMatch = (newGame) => {
+export const startMatch = (io, newGame) => {
   if (!newGame) return;
   const { gameId, arenaId, instance, players, timeControl } = newGame;
 
-  players.white.socket.join(gameId);
-  players.black.socket.join(gameId);
+  io.in(players.white.socketId).socketsJoin(gameId);
+  io.in(players.black.socketId).socketsJoin(gameId);
 
   const tcLabel = timeControl ? timeControl.label : "unlimited";
 
-  players.white.socket.emit("match_started", {
+  io.to(players.white.socketId).emit("match_started", {
     gameId,
     arenaId: arenaId ?? null,
     color: "white",
@@ -19,7 +19,7 @@ export const startMatch = (newGame) => {
     blackTime: players.black.time,
   });
 
-  players.black.socket.emit("match_started", {
+  io.to(players.black.socketId).emit("match_started", {
     gameId,
     arenaId: arenaId ?? null,
     color: "black",
