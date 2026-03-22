@@ -105,8 +105,12 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
+  const isAuthenticated = !!currentUser;
+
   const value = {
     currentUser,
+    loading,
+    isAuthenticated,
     registerEmailPassword,
     loginEmailPassword,
     loginWithGoogle,
